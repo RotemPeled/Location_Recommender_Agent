@@ -16,7 +16,13 @@ class GeocodingTool:
 
     def geocode(self, place: str, limit: int = 5) -> list[dict[str, Any]]:
         start = time.time()
-        params = {"q": place, "format": "jsonv2", "limit": limit}
+        params = {
+            "q": place,
+            "format": "jsonv2",
+            "limit": limit,
+            "addressdetails": 1,
+            "accept-language": "en",
+        }
         log_event(self.logger, "DEBUG", "tool_request", tool_name="geocoding", params=params)
         response = requests.get(self.url, params=params, headers=self.headers, timeout=20)
         response.raise_for_status()
@@ -26,6 +32,8 @@ class GeocodingTool:
                 "name": row.get("display_name", ""),
                 "lat": float(row["lat"]),
                 "lon": float(row["lon"]),
+                "address": row.get("address", {}),
+                "country_code": row.get("address", {}).get("country_code", ""),
             }
             for row in rows
         ]

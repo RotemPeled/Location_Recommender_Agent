@@ -34,6 +34,8 @@ class AgentOrchestrator:
     def run(self, user_text: str, memory: Any) -> dict[str, Any]:
         plan = [asdict(step) for step in build_plan()]
         parsed = self.intent_parser.parse(user_text)
+        parsed = self._apply_memory_context(parsed, memory)
+        effective_weather_pref = self._effective_weather_preference(parsed, memory)
         log_event(self.logger, "INFO", "intent_parsed", parsed=asdict(parsed))
 
         missing = missing_slots(parsed)
@@ -47,7 +49,7 @@ class AgentOrchestrator:
                 "parsed": asdict(parsed),
             }
 
-        if should_ask_weather_preference(parsed, memory.preferred_weather):
+        if should_ask_weather_preference(parsed, effective_weather_pref):
             return {
                 "status": "needs_weather_preference",
                 "question": "Do you prefer cold, mild, warm weather, or no preference?",
@@ -77,7 +79,7 @@ class AgentOrchestrator:
             score_candidate(
                 candidate=candidate,
                 activity=parsed.activity,
-                preferred_weather=memory.preferred_weather,
+                preferred_weather=effective_weather_pref,
                 max_flight_hours=parsed.max_flight_hours,
                 season=season,
                 liked_profiles=memory.liked_profiles,
@@ -91,26 +93,43 @@ class AgentOrchestrator:
             "intent": parsed.intent,
             "user_text": user_text,
             "top_candidates": top,
-            "preferred_weather": memory.preferred_weather,
+            "preferred_weather": effective_weather_pref,
         }
         summary = self._build_summary(llm_payload, top)
+        detailed_message = self._build_detailed_message(summary, top)
+        feedback_prompt = "What do you think about these options?"
+        if len(top) == 1:
+            feedback_prompt = "What do you think about this option?"
+        memory.update_from_parsed(parsed)
 
         return {
             "status": "ok",
-            "summary": summary,
+            "summary": detailed_message,
             "recommendations": top,
             "plan": plan,
             "parsed": asdict(parsed),
-            "feedback_prompt": "What do you think about these options?",
+            "feedback_prompt": (
+                f"{feedback_prompt} "
+                "Reply with: 'like 1' or 'not good, new options'."
+            ),
         }
 
     def _build_candidates(self, parsed: Any, memory: Any) -> list[dict[str, Any]]:
         if parsed.destination:
-            seeds = self.geocoding_tool.geocode(parsed.destination, limit=5)
+            seeds = self.geocoding_tool.geocode(parsed.destination, limit=2)
         elif parsed.activity and parsed.activity.lower() == "skiing":
             seeds = self._geocode_seed_locations(["Innsbruck", "Aspen", "Chamonix", "Sapporo", "Queenstown"])
         else:
             seeds = self._geocode_seed_locations(["Lisbon", "Bangkok", "Tokyo", "Cape Town", "Vancouver", "Buenos Aires"])
+        if not seeds:
+            log_event(
+                self.logger,
+                "INFO",
+                "no_geocode_seeds_for_query",
+                destination=parsed.destination,
+                intent=parsed.intent,
+            )
+            return []
 
         candidates: list[dict[str, Any]] = []
         for seed in seeds:
@@ -136,12 +155,14 @@ class AgentOrchestrator:
                     "lat": seed["lat"],
                     "lon": seed["lon"],
                     "activity": parsed.activity,
-                    "preferred_weather": memory.preferred_weather,
+                    "preferred_weather": self._effective_weather_preference(parsed, memory),
                     "estimated_flight_hours": flight_hours,
                     **weather,
                     **places,
                 }
             )
+        if parsed.destination and candidates:
+            return candidates[:1]
         return candidates
 
     def _geocode_seed_locations(self, names: list[str]) -> list[dict[str, Any]]:
@@ -165,3 +186,75 @@ class AgentOrchestrator:
                 f"Best current match is {first['destination']} with score {round(first['score'], 1)}. "
                 "I also included alternatives with clear tradeoffs."
             )
+
+    def _build_detailed_message(self, summary: str, recommendations: list[dict[str, Any]]) -> str:
+        normalized_summary = self._normalize_summary_for_count(summary, len(recommendations))
+        heading = "Here are quick details for each option:"
+        if len(recommendations) == 1:
+            heading = "Here are quick details for this option:"
+        lines = [normalized_summary, "", heading]
+        for index, rec in enumerate(recommendations, start=1):
+            avg_temp = (float(rec.get("max_temp", 24.0)) + float(rec.get("min_temp", 14.0))) / 2.0
+            condition = self._weather_condition_label(
+                max_temp=float(rec.get("max_temp", 24.0)),
+                min_temp=float(rec.get("min_temp", 14.0)),
+                rain=float(rec.get("rain", 0.0)),
+            )
+            activities = rec.get("sample_names", [])[:3]
+            if not activities:
+                activities_text = "city center walk, local museum, food market"
+            else:
+                activities_text = ", ".join(activities)
+            lines.append(
+                (
+                    f"{index}. {rec.get('destination', 'Unknown')}: "
+                    f"avg weather ~{avg_temp:.1f}C, usually {condition}. "
+                    f"Possible activities: {activities_text}."
+                )
+            )
+        return "\n".join(lines)
+
+    def _normalize_summary_for_count(self, summary: str, count: int) -> str:
+        if count != 1:
+            return summary
+        normalized = summary
+        replacements = {
+            "each option": "this option",
+            "these options": "this option",
+            "options are": "option is",
+            "options were": "option was",
+            "alternatives": "alternative options",
+        }
+        for old, new in replacements.items():
+            normalized = normalized.replace(old, new)
+            normalized = normalized.replace(old.title(), new.title())
+        return normalized
+
+    def _weather_condition_label(self, max_temp: float, min_temp: float, rain: float) -> str:
+        if rain >= 4.0:
+            return "rainy"
+        if rain >= 1.5:
+            return "cloudy"
+        avg_temp = (max_temp + min_temp) / 2.0
+        if avg_temp >= 12:
+            return "sunny"
+        return "partly cloudy"
+
+    def _apply_memory_context(self, parsed: Any, memory: Any) -> Any:
+        # Carry destination only for short follow-up answers such as a month/date.
+        text = (parsed.raw_text or "").strip().lower()
+        short_follow_up = len(text.split()) <= 4 and parsed.travel_date_or_month is not None
+        if parsed.destination is None and short_follow_up and memory.last_destination:
+            parsed.destination = memory.last_destination
+        return parsed
+
+    def _effective_weather_preference(self, parsed: Any, memory: Any) -> str | None:
+        # Query-level weather intent overrides stored preference for that turn.
+        activity = (parsed.activity or "").lower()
+        if activity.startswith("weather_preference:cold"):
+            return "cold"
+        if activity.startswith("weather_preference:warm"):
+            return "warm"
+        if activity.startswith("weather_preference:mild"):
+            return "mild"
+        return memory.preferred_weather

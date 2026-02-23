@@ -15,7 +15,7 @@ Agentic travel recommendation app built for the interview assignment.
 ## Tech stack
 
 - Python + Streamlit
-- Gemini API (`google-generativeai`)
+- Groq API (`groq` Python SDK)
 - Requests + lightweight deterministic orchestration
 
 ## Project structure
@@ -33,8 +33,8 @@ Agentic travel recommendation app built for the interview assignment.
 2. Install dependencies:
    - `pip install -r requirements.txt`
 3. Copy `.env.example` values into your environment:
-   - `GEMINI_API_KEY`
-   - optional `GEMINI_MODEL`
+   - `GROQ_API_KEY`
+   - optional `GROQ_MODEL`
    - optional logging config (`LOG_LEVEL`, `LOG_PRETTY`)
 4. Run:
    - `streamlit run app.py`

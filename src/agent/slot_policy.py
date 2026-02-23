@@ -6,12 +6,15 @@ from typing import Any
 REQUIRED_SLOTS_BY_INTENT = {
     "destination_opinion": ["destination", "travel_date_or_month"],
     "activity_based_discovery": ["activity", "travel_date_or_month"],
-    "constraint_based_discovery": ["travel_date_or_month", "max_flight_hours"],
+    # Flight duration is optional unless explicitly requested by user.
+    "constraint_based_discovery": ["travel_date_or_month"],
 }
 
 
 def missing_slots(parsed_intent: Any) -> list[str]:
-    required = REQUIRED_SLOTS_BY_INTENT.get(parsed_intent.intent, [])
+    required = list(REQUIRED_SLOTS_BY_INTENT.get(parsed_intent.intent, []))
+    if getattr(parsed_intent, "max_flight_hours", None) == -1:
+        required = [slot for slot in required if slot != "max_flight_hours"]
     missing = []
     for slot in required:
         if getattr(parsed_intent, slot, None) in (None, ""):

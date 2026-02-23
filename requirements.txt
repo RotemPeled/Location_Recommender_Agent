@@ -2,4 +2,5 @@ streamlit
 requests
 python-dateutil
 pydantic
-google-genai
+groq
+python-dotenv
