@@ -1,0 +1,5 @@
+streamlit
+requests
+python-dateutil
+pydantic
+google-genai

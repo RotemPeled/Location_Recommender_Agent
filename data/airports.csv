@@ -1,0 +1,38 @@
+city,country,iata,lat,lon
+tel aviv,israel,TLV,32.011,34.886
+london,united kingdom,LHR,51.470,-0.454
+paris,france,CDG,49.009,2.547
+rome,italy,FCO,41.799,12.246
+milan,italy,MXP,45.630,8.723
+barcelona,spain,BCN,41.297,2.083
+madrid,spain,MAD,40.472,-3.561
+lisbon,portugal,LIS,38.774,-9.134
+athens,greece,ATH,37.936,23.947
+istanbul,turkey,IST,41.275,28.752
+new york,united states,JFK,40.641,-73.778
+los angeles,united states,LAX,33.942,-118.408
+miami,united states,MIA,25.795,-80.287
+toronto,canada,YYZ,43.677,-79.624
+mexico city,mexico,MEX,19.436,-99.072
+buenos aires,argentina,EZE,-34.822,-58.535
+rio de janeiro,brazil,GIG,-22.809,-43.250
+cape town,south africa,CPT,-33.969,18.597
+nairobi,kenya,NBO,-1.319,36.927
+dubai,united arab emirates,DXB,25.253,55.365
+doha,qatar,DOH,25.273,51.608
+delhi,india,DEL,28.556,77.100
+mumbai,india,BOM,19.089,72.865
+bangkok,thailand,BKK,13.690,100.750
+singapore,singapore,SIN,1.364,103.991
+tokyo,japan,HND,35.549,139.779
+osaka,japan,KIX,34.434,135.244
+seoul,south korea,ICN,37.460,126.440
+beijing,china,PEK,40.080,116.584
+sydney,australia,SYD,-33.946,151.177
+melbourne,australia,MEL,-37.673,144.843
+auckland,new zealand,AKL,-37.008,174.792
+chamonix,france,CMF,45.931,6.107
+innsbruck,austria,INN,47.260,11.344
+aspen,united states,ASE,39.223,-106.869
+sapporo,japan,CTS,42.775,141.692
+queenstown,new zealand,ZQN,-45.021,168.739
